@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sharjah FC Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+<style>
+body {
+  font-family: 'Roboto', sans-serif;
+  margin:0; padding:0;
+  background:#ffffff;
+  color:#000;
+}
+.page { display:none; padding:20px; }
+.active { display:block; }
+.tabs { display:flex; justify-content:space-around; position:fixed; bottom:0; width:100%; background:#E30613; color:white; border-top:3px solid #1a73e8; font-weight:bold; z-index:100; }
+.tab { padding:10px; cursor:pointer; text-align:center; flex:1; }
+.circle-timer-container { position:relative; width:220px; height:220px; margin:auto; margin-top:20px; }
+svg { transform:rotate(-90deg); }
+circle { fill:none; stroke-width:15; stroke-linecap:round; }
+.bg-circle { stroke:#ffe6e6; }
+.progress-circle { stroke:#E30613; stroke-dasharray:440; stroke-dashoffset:440; transition: stroke 0.5s; }
+.circle-text { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; font-weight:bold; font-size:20px; color:#E30613; }
+.next-games { margin-top:20px; display:flex; flex-direction:column; gap:10px; }
+.next-game { background:#fff; padding:10px; border-radius:10px; text-align:center; border:1px solid #E30613; position:relative; font-weight:bold; }
+.game-group { border-radius:10px; margin-bottom:15px; padding:10px; position:relative; background:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1);}
+.competition-name { font-weight:bold; margin-bottom:5px; color:#E30613; font-size:18px; }
+.game-item { background:#fff; padding:5px; display:flex; align-items:center; justify-content:space-between; margin-bottom:3px; border-radius:5px; font-size:16px; }
+.game-item img { width:30px; height:30px; border-radius:50%; margin:0 5px; }
+button.edit-btn, button.delete-btn { padding:3px 7px; margin-left:5px; border:none; border-radius:5px; cursor:pointer; font-size:12px; }
+button.edit-btn { background-color:#E30613; color:white; }
+button.delete-btn { background-color:black; color:white; }
+input, select { width:100%; padding:8px; margin-bottom:10px; border:1px solid #ccc; border-radius:5px; }
+.save-btn { background-color:#E30613; color:white; border:none; padding:10px; width:100%; cursor:pointer; border-radius:5px; margin-bottom:10px; font-weight:bold; }
+</style>
+</head>
+<body>
+
+<!-- Home Page -->
+<div id="homePage" class="page active">
+  <div class="circle-timer-container">
+    <svg width="220" height="220">
+      <circle class="bg-circle" cx="110" cy="110" r="70"></circle>
+      <circle class="progress-circle" cx="110" cy="110" r="70"></circle>
+    </svg>
+    <div class="circle-text">
+      <span id="nextGameName">No upcoming game</span><br>
+      <span id="countdown"></span>
+    </div>
+  </div>
+  <div class="next-games" id="nextGamesList"></div>
+</div>
+
+<!-- Games Page -->
+<div id="gamesPage" class="page">
+  <h1>Sharjah FC Games</h1>
+  <div id="gameList"></div>
+</div>
+
+<!-- Add Game Page -->
+<div id="addPage" class="page">
+  <h1>Add Game</h1>
+  <select id="competitionSelect"></select>
+  <select id="homeTeamSelect"></select>
+  <select id="opponentTeamSelect"></select>
+  <input type="date" id="date">
+  <input type="time" id="time">
+  <input type="text" id="stadium" placeholder="Stadium">
+  <button class="save-btn" onclick="addGame()">Save Game</button>
+</div>
+
+<!-- Operator Page -->
+<div id="operatorPage" class="page">
+  <h1>Operator</h1>
+  <h2>Teams</h2>
+  <input type="text" id="teamName" placeholder="Team Name">
+  <input type="file" id="teamLogoInput" accept="image/*">
+  <button class="save-btn" onclick="saveTeam()">Save Team</button>
+  <div id="teamList"></div>
+
+  <h2>Competitions</h2>
+  <input type="text" id="competitionName" placeholder="Competition Name">
+  <input type="color" id="competitionColor" value="#E30613">
+  <input type="file" id="competitionLogoInput" accept="image/*">
+  <button class="save-btn" onclick="saveCompetition()">Save Competition</button>
+  <div id="competitionList"></div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab" onclick="showPage('homePage')">Home</div>
+  <div class="tab" onclick="showPage('gamesPage')">Games</div>
+  <div class="tab" onclick="showPage('addPage')">Add Game</div>
+  <div class="tab" onclick="showPage('operatorPage')">Operator</div>
+</div>
+
+<script>
+// DATA
+let teams = [];
+let competitions = [];
+let games = [
+  {competition:"UAE PL", date:"2025-08-16", time:"16:30", opponent:"Dibba Al Fujairah", stadium:"Fujairah Stadium", homeLogo:"", opponentLogo:""},
+  {competition:"UAE PL", date:"2025-08-23", time:"18:00", opponent:"Al Ain", stadium:"Sharjah Stadium", homeLogo:"", opponentLogo:""},
+  {competition:"UAE PL", date:"2025-08-30", time:"19:30", opponent:"Al Wasl", stadium:"Zabeel Stadium", homeLogo:"", opponentLogo:""},
+];
+
+// NAVIGATION
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(id==='homePage') updateHome();
+  if(id==='gamesPage') updateGameList();
+  if(id==='addPage') updateAddGameSelects();
+  if(id==='operatorPage') updateOperatorLists();
+}
+
+// OPERATOR FUNCTIONS
+function saveTeam(){
+  const name=document.getElementById('teamName').value;
+  const file=document.getElementById('teamLogoInput').files[0];
+  if(!name){ alert("Enter team name"); return; }
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const logo=e.target.result||'';
+    const idx=teams.findIndex(t=>t.name===name);
+    if(idx>=0){ teams[idx].logo=logo; } else { teams.push({name,logo}); }
+    updateOperatorLists(); updateAddGameSelects();
+    document.getElementById('teamName').value=''; document.getElementById('teamLogoInput').value='';
+  }
+  if(file) reader.readAsDataURL(file); else reader.onload({target:{result:''}});
+}
+function saveCompetition(){
+  const name=document.getElementById('competitionName').value;
+  const color=document.getElementById('competitionColor').value;
+  const file=document.getElementById('competitionLogoInput').files[0];
+  if(!name){ alert("Enter competition name"); return; }
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const logo=e.target.result||'';
+    const idx=competitions.findIndex(c=>c.name===name);
+    if(idx>=0){ competitions[idx].logo=logo; competitions[idx].color=color; } 
+    else { competitions.push({name,logo,color}); }
+    updateOperatorLists(); updateAddGameSelects();
+    document.getElementById('competitionName').value=''; document.getElementById('competitionLogoInput').value='';
+  }
+  if(file) reader.readAsDataURL(file); else reader.onload({target:{result:''}});
+}
+function updateOperatorLists(){
+  const tlist=document.getElementById('teamList'); tlist.innerHTML='';
+  teams.forEach((t,i)=>{ 
+    const div=document.createElement('div'); 
+    div.innerHTML=`<img src="${t.logo}" style="width:30px;height:30px;border-radius:50%;"> ${t.name}`; tlist.appendChild(div);
+  });
+  const clist=document.getElementById('competitionList'); clist.innerHTML='';
+  competitions.forEach((c,i)=>{
+    const div=document.createElement('div');
+    div.innerHTML=`<img src="${c.logo}" style="width:20px;height:20px;"> ${c.name} <span style="color:${c.color}">■</span>`;
+    clist.appendChild(div);
+  });
+}
+
+// ADD GAME
+function updateAddGameSelects(){
+  const homeSel=document.getElementById('homeTeamSelect'); homeSel.innerHTML='';
+  const oppSel=document.getElementById('opponentTeamSelect'); oppSel.innerHTML='';
+  teams.forEach(t=>{
+    const opt=document.createElement('option'); opt.value=t.name; opt.text=t.name; homeSel.appendChild(opt);
+    const opt2=document.createElement('option'); opt2.value=t.name; opt2.text=t.name; oppSel.appendChild(opt2);
+  });
+  const compSel=document.getElementById('competitionSelect'); compSel.innerHTML='';
+  competitions.forEach(c=>{ const o=document.createElement('option'); o.value=c.name; o.text=c.name; compSel.appendChild(o); });
+}
+function addGame(){
+  const comp=document.getElementById('competitionSelect').value;
+  const home=document.getElementById('homeTeamSelect').value;
+  const opp=document.getElementById('opponentTeamSelect').value;
+  const date=document.getElementById('date').value;
+  const time=document.getElementById('time').value;
+  const stadium=document.getElementById('stadium').value;
+  if(!comp||!home||!opp||!date||!time||!stadium){ alert("Fill all fields"); return; }
+
+  const homeLogo=teams.find(t=>t.name===home)?.logo || '';
+  const oppLogo=teams.find(t=>t.name===opp)?.logo || '';
+
+  games.push({competition:comp,date,time,opponent:opp,stadium,homeLogo,opponentLogo:oppLogo});
+  updateHome(); updateGameList();
+  alert("Game added!"); showPage('homePage');
+}
+
+// GAMES LIST WITH TIMERS & EDIT/DELETE
+function updateGameList(){
+  const container=document.getElementById('gameList'); container.innerHTML='';
+  let currentComp=null; let groupDiv=null;
+  games.forEach((g,i)=>{
+    const compData=competitions.find(c=>c.name===g.competition);
+    const compColor=compData?.color || '#E30613';
+
+    if(currentComp!==g.competition){
+      groupDiv=document.createElement('div'); groupDiv.className='game-group';
+      groupDiv.style.border=`2px solid ${compColor}`;
+      const compTitle=document.createElement('div'); compTitle.className='competition-name';
+      compTitle.innerText=g.competition; groupDiv.appendChild(compTitle);
+      container.appendChild(groupDiv);
+      currentComp=g.competition;
+    }
+
+    const homeLogo=g.homeLogo||''; const oppLogo=g.opponentLogo||'';
+    const div=document.createElement('div'); div.className='game-item';
+    div.innerHTML=`${homeLogo?'<img src="'+homeLogo+'">':''}Sharjah vs ${g.opponent}${oppLogo?'<img src="'+oppLogo+'">':''}<br>
+      ${g.date} ${g.time}<br>${g.stadium}<br>
+      <span class="game-countdown" data-date="${g.date}" data-time="${g.time}"></span>
+      <button class="edit-btn" onclick="editGame(${i})">Edit</button>
+      <button class="delete-btn" onclick="deleteGame(${i})">Delete</button>`;
+    groupDiv.appendChild(div);
+  });
+
+  setInterval(()=>{ 
+    document.querySelectorAll('.game-countdown').forEach(span=>{
+      const d=span.getAttribute('data-date'); const t=span.getAttribute('data-time');
+      const now=new Date(); const gameTime=new Date(d+'T'+t);
+      let diff=gameTime-now; if(diff<0) diff=0;
+      const days=Math.floor(diff/(1000*60*60*24));
+      const hours=Math.floor((diff/(1000*60*60))%24);
+      const minutes=Math.floor((diff/(1000*60))%60);
+      const seconds=Math.floor((diff/1000)%60);
+      let text=''; if(days>0) text+=days+'d '; if(hours>0) text+=hours+'h '; if(minutes>0) text+=minutes+'m '; if(seconds>0) text+=seconds+'s';
+      span.innerText=text;
+    });
+  },1000);
+}
+
+function editGame(idx){
+  const g=games[idx]; showPage('addPage');
+  document.getElementById('competitionSelect').value=g.competition;
+  document.getElementById('homeTeamSelect').value='Sharjah';
+  document.getElementById('opponentTeamSelect').value=g.opponent;
+  document.getElementById('date').value=g.date;
+  document.getElementById('time').value=g.time;
+  document.getElementById('stadium').value=g.stadium;
+  games.splice(idx,1); updateGameList();
+}
+function deleteGame(idx){ games.splice(idx,1); updateGameList(); }
+
+// HOME TIMER FIXED
+let homeTimerInterval;
+function updateHome(){
+  const timerCircle=document.querySelector('.progress-circle');
+  const nextGameText=document.getElementById('nextGameName');
+  const countdownText=document.getElementById('countdown');
+  const nextGamesContainer=document.getElementById('nextGamesList');
+
+  if(games.length===0){ 
+    nextGameText.innerText='No upcoming game'; countdownText.innerText=''; 
+    timerCircle.style.strokeDashoffset=440; nextGamesContainer.innerHTML='';
+    if(homeTimerInterval) clearInterval(homeTimerInterval);
+    return; 
+  }
+
+  games.sort((a,b)=> new Date(a.date+'T'+a.time)-new Date(b.date+'T'+b.time));
+  const nextGame=games[0]; nextGameText.innerText=nextGame.opponent;
+
+  if(homeTimerInterval) clearInterval(homeTimerInterval);
+
+  homeTimerInterval = setInterval(() => {
+    const now=new Date();
+    const gameTime=new Date(nextGame.date+'T'+nextGame.time);
+    let diff=gameTime-now; if(diff<0) diff=0;
+
+    const days=Math.floor(diff/(1000*60*60*24));
+    const hours=Math.floor((diff/(1000*60*60))%24);
+    const minutes=Math.floor((diff/(1000*60))%60);
+    const seconds=Math.floor((diff/1000)%60);
+
+    let text=''; if(days>0) text+=days+'d '; if(hours>0) text+=hours+'h '; if(minutes>0) text+=minutes+'m '; if(seconds>0) text+=seconds+'s';
+    countdownText.innerText = text || '';
+
+    const totalSeconds=(gameTime-now)/1000; const perc=Math.max(0,totalSeconds/(60*60*24)); timerCircle.style.strokeDashoffset=440*perc;
+  },1000);
+
+  nextGamesContainer.innerHTML='';
+  for(let i=0;i<4;i++){
+    const g=games[i]; 
+    const div=document.createElement('div'); div.className='next-game';
+    if(g) div.innerHTML=`${g.date} ${g.time}<br>Sharjah vs ${g.opponent}<br>${g.stadium}<br>${g.competition}`;
+    else div.innerHTML='No game';
+    nextGamesContainer.appendChild(div);
+  }
+}
+
+// INITIALIZE
+updateHome(); updateGameList(); updateOperatorLists(); updateAddGameSelects();
+</script>
+</body>
+</html>
